@@ -26,6 +26,7 @@ function parseArgs(argv) {
     translations: DEFAULT_TRANSLATIONS_PATH,
     cacheDir: DEFAULT_CACHE_DIR,
     refreshCache: false,
+    omitSetCounts: false,
   };
 
   for (let i = 0; i < argv.length; i += 1) {
@@ -100,6 +101,9 @@ function parseArgs(argv) {
       case "--refresh-cache":
         args.refreshCache = true;
         break;
+      case "--omit-set-counts":
+        args.omitSetCounts = true;
+        break;
       case "--help":
       case "-h":
         printHelp(0);
@@ -139,6 +143,7 @@ function printHelp(exitCode = 0) {
     "  --rules          Path to formatter rules JSON",
     "  --cache-dir      Directory for API response cache",
     "  --refresh-cache  Ignore cache and refetch from API",
+    "  --omit-set-counts Print JA singles without 3(...)2 set counts",
     "",
     "Examples:",
     "  node extract_team_matches.js --event 2751 --gender men --round quarterfinal",
@@ -723,7 +728,7 @@ function getSingleDisplayIndexes(single, displayedTeams) {
   };
 }
 
-function formatIndividualScoreJa(match, leftCompetitorIndex) {
+function formatIndividualScoreJa(match, leftCompetitorIndex, options = {}) {
   const [rawLeftSets, rawRightSets] = String(match.overallScore || "-").split("-");
   const leftSets = leftCompetitorIndex === 0 ? rawLeftSets : rawRightSets;
   const rightSets = leftCompetitorIndex === 0 ? rawRightSets : rawLeftSets;
@@ -740,6 +745,10 @@ function formatIndividualScoreJa(match, leftCompetitorIndex) {
     const rightPoints = leftCompetitorIndex === 0 ? awayPoints : homePoints;
     return leftPoints > rightPoints ? String(rightPoints) : `-${leftPoints}`;
   });
+
+  if (options.omitSetCounts) {
+    return normalizedGames.join(",");
+  }
 
   return `${leftSets}(${normalizedGames.join(",")})${rightSets}`;
 }
@@ -823,9 +832,9 @@ function formatJaTeamLine(match, translations) {
   return `　${left}　${score}　${right}`;
 }
 
-function formatJaSinglesLine(single, translations, displayedTeams) {
+function formatJaSinglesLine(single, translations, displayedTeams, options = {}) {
   const { leftCompetitorIndex, rightCompetitorIndex } = getSingleDisplayIndexes(single, displayedTeams);
-  const score = formatIndividualScoreJa(single, leftCompetitorIndex);
+  const score = formatIndividualScoreJa(single, leftCompetitorIndex, options);
   const left = translatePlayer(single.competitors[leftCompetitorIndex]?.name || "", translations);
   const right = translatePlayer(single.competitors[rightCompetitorIndex]?.name || "", translations);
   const winnerIndex = getWinnerIndexFromScore(single.overallScore);
@@ -858,7 +867,7 @@ function formatJaPendingLine(match, index, translations, displayedTeams) {
   return `　${left}　-　${right}`;
 }
 
-function formatJapanese(matches, translations, rules, roundContext) {
+function formatJapanese(matches, translations, rules, roundContext, options = {}) {
   return matches
     .map((match) => {
       const displayedTeams = getDisplayedTeamIndexes(match);
@@ -866,7 +875,7 @@ function formatJapanese(matches, translations, rules, roundContext) {
         formatJaHeader({ ...match, roundContext }, translations, rules),
         formatJaTeamLine(match, translations),
         ...match.singles.map((single) =>
-          formatJaSinglesLine(single, translations, displayedTeams),
+          formatJaSinglesLine(single, translations, displayedTeams, options),
         ),
       ];
 
@@ -931,6 +940,7 @@ function createArgs(overrides = {}) {
     rules: DEFAULT_RULES_PATH,
     cacheDir: DEFAULT_CACHE_DIR,
     refreshCache: false,
+    omitSetCounts: false,
   };
 
   return Object.fromEntries(
@@ -980,7 +990,9 @@ function renderOutput(result) {
   }
 
   if (args.ja) {
-    return formatJapanese(filtered, translations, rules, jaRoundContext);
+    return formatJapanese(filtered, translations, rules, jaRoundContext, {
+      omitSetCounts: args.omitSetCounts,
+    });
   }
 
   return formatText(filtered);

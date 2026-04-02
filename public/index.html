@@ -97,6 +97,25 @@
         color: var(--muted);
       }
 
+      label.check {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: var(--ink);
+        white-space: nowrap;
+      }
+
+      label.check input[type="checkbox"] {
+        margin: 0;
+        width: auto;
+        flex: 0 0 auto;
+        padding: 0;
+        border: 0;
+        border-radius: 0;
+        background: transparent;
+        accent-color: var(--accent);
+      }
+
       input,
       select,
       textarea,
@@ -104,7 +123,7 @@
         font: inherit;
       }
 
-      input,
+      input:not([type="checkbox"]),
       select {
         width: 100%;
         border: 1px solid var(--line);
@@ -320,9 +339,14 @@
               <input name="team" placeholder="JPN / Japan / Hong Kong">
             </label>
 
-            <label>
+            <label class="check">
               <input type="checkbox" name="refreshCache" value="true">
               取得前にキャッシュを更新する
+            </label>
+
+            <label class="check">
+              <input type="checkbox" name="omitSetCounts" value="true">
+              個人戦のゲーム数表記を省略する
             </label>
 
             <div class="actions">

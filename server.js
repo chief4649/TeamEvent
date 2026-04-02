@@ -181,6 +181,7 @@ function buildOptions(searchParams) {
     rules: RULES_PATH,
     cacheDir: CACHE_DIR,
     refreshCache: parseBoolean(searchParams.get("refreshCache")),
+    omitSetCounts: parseBoolean(searchParams.get("omitSetCounts")),
   };
 }
 
@@ -222,6 +223,7 @@ async function handleApi(requestUrl, response) {
         limit: options.limit,
         format: pickFormat(requestUrl.searchParams),
         refreshCache: options.refreshCache,
+        omitSetCounts: options.omitSetCounts,
       },
       meta: {
         fetchedMatches: result.normalized.length,
