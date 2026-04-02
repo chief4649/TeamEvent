@@ -157,6 +157,14 @@ function normalizeText(value) {
     .trim();
 }
 
+function normalizeSearchText(value) {
+  return String(value || "")
+    .toLowerCase()
+    .replace(/['’]/g, "")
+    .replace(/[^\p{L}\p{N}]+/gu, " ")
+    .trim();
+}
+
 function inferGender(value) {
   const text = normalizeText(value);
   if (text === "women" || text === "womens" || text === "female") {
@@ -175,8 +183,11 @@ function inferGender(value) {
 }
 
 function normalizeRound(value) {
+  const raw = String(value || "").trim();
   const text = normalizeText(value);
-  if (!text) {
+  const compactRaw = raw.replace(/\s+/g, "").toLowerCase();
+
+  if (!raw && !text) {
     return null;
   }
 
@@ -191,19 +202,44 @@ function normalizeRound(value) {
     return "preliminary_round";
   }
 
+  const japaneseRoundNumberMatch = compactRaw.match(/^第?([0-9０-９]+)回戦$/);
+  if (japaneseRoundNumberMatch) {
+    const roundNumber = Number(japaneseRoundNumberMatch[1].replace(/[０-９]/g, (digit) =>
+      String("０１２３４５６７８９".indexOf(digit))));
+    return Number.isFinite(roundNumber) ? `knockout_round_${roundNumber}` : null;
+  }
+
+  const japaneseAliases = [
+    ["quarterfinal", ["準々決勝", "準準決勝"]],
+    ["semifinal", ["準決勝"]],
+    ["final", ["決勝"]],
+    ["round_of_128", ["ベスト128", "128強"]],
+    ["round_of_64", ["ベスト64", "64強"]],
+    ["round_of_32", ["ベスト32", "32強"]],
+    ["round_of_16", ["ベスト16", "16強"]],
+    ["group", ["グループ", "予選リーグ"]],
+    ["preliminary_round", ["予備ラウンド"]],
+  ];
+
+  for (const [canonical, values] of japaneseAliases) {
+    if (values.some((alias) => compactRaw === alias.toLowerCase() || compactRaw.includes(alias.toLowerCase()))) {
+      return canonical;
+    }
+  }
+
   const aliases = [
-    ["quarterfinal", ["quarterfinal", "quarter final", "qf"]],
-    ["semifinal", ["semifinal", "semi final", "sf"]],
-    ["final", ["final"]],
-    ["round_of_128", ["round of 128", "r128"]],
-    ["round_of_64", ["round of 64", "r64"]],
-    ["round_of_16", ["round of 16", "r16"]],
-    ["round_of_32", ["round of 32", "r32"]],
+    ["quarterfinal", ["quarterfinal", "quarterfinals", "quarter final", "quarter finals", "quarter-final", "quarter-finals", "qf"]],
+    ["semifinal", ["semifinal", "semifinals", "semi final", "semi finals", "semi-final", "semi-finals", "sf"]],
+    ["round_of_128", ["round of 128", "r128", "best 128"]],
+    ["round_of_64", ["round of 64", "r64", "best 64"]],
+    ["round_of_16", ["round of 16", "r16", "best 16"]],
+    ["round_of_32", ["round of 32", "r32", "best 32"]],
+    ["final", ["final", "f"]],
     ["group", ["group", "pool"]],
   ];
 
   for (const [canonical, values] of aliases) {
-    if (values.some((alias) => text === alias || text.includes(alias))) {
+    if (values.some((alias) => text === alias)) {
       return canonical;
     }
   }
@@ -225,7 +261,7 @@ function extractRound(description) {
   };
 }
 
-function matchesRoundFilter(matchRoundKey, wantedRound) {
+function matchesRoundFilter(matchRoundKey, wantedRound, context = null) {
   if (!matchRoundKey || !wantedRound) {
     return false;
   }
@@ -240,6 +276,11 @@ function matchesRoundFilter(matchRoundKey, wantedRound) {
 
   if (wantedRound === "stage_1a" || wantedRound === "stage_1b") {
     return matchRoundKey === wantedRound || matchRoundKey === `${wantedRound}_group`;
+  }
+
+  const knockoutRoundMatch = String(wantedRound).match(/^knockout_round_(\d+)$/);
+  if (knockoutRoundMatch) {
+    return context?.knockoutRoundNumbers?.[matchRoundKey] === `${knockoutRoundMatch[1]}回戦`;
   }
 
   return false;
@@ -350,6 +391,39 @@ function translate(value, dictionary) {
   return dictionary?.[value] || value;
 }
 
+function getNameTranslationCandidates(value) {
+  const raw = String(value || "").trim();
+  if (!raw) {
+    return [];
+  }
+
+  const collapsed = raw.replace(/\s+/g, " ");
+  const candidates = [raw];
+
+  if (collapsed !== raw) {
+    candidates.push(collapsed);
+  }
+
+  const parts = collapsed.split(" ").filter(Boolean);
+  if (parts.length === 2) {
+    candidates.push(`${parts[1]} ${parts[0]}`);
+  }
+
+  return [...new Set(candidates)];
+}
+
+function translatePlayer(value, translations) {
+  const candidates = getNameTranslationCandidates(value);
+
+  for (const candidate of candidates) {
+    if (translations.players?.[candidate]) {
+      return translations.players[candidate];
+    }
+  }
+
+  return value;
+}
+
 function translateTeam(team, translations) {
   const rawName = team?.name || "";
   const normalizedName = rawName.replace(/\s+\d+$/, "");
@@ -362,6 +436,47 @@ function translateTeam(team, translations) {
   }
 
   return rawName;
+}
+
+function getSearchTermsForTeam(team, translations) {
+  return [
+    team?.name,
+    team?.org,
+    translateTeam(team, translations),
+    translations.teams?.[team?.org || ""],
+  ].filter(Boolean);
+}
+
+function getSearchTermsForSingle(single, translations) {
+  return (single?.competitors || []).flatMap((competitor) => {
+    const names = [
+      competitor?.name,
+      competitor?.org,
+      ...getNameTranslationCandidates(competitor?.name),
+      translatePlayer(competitor?.name || "", translations),
+      ...((competitor?.players || []).flatMap((player) => [
+        player?.name,
+        ...getNameTranslationCandidates(player?.name),
+        translatePlayer(player?.name || "", translations),
+      ])),
+      translations.teams?.[competitor?.org || ""],
+    ];
+
+    return names.filter(Boolean);
+  });
+}
+
+function buildMatchSearchText(match, translations) {
+  return normalizeSearchText(
+    [
+      match.description,
+      match.subEventType,
+      match.roundLabel,
+      match.roundKey,
+      ...match.teams.flatMap((team) => getSearchTermsForTeam(team, translations)),
+      ...match.singles.flatMap((single) => getSearchTermsForSingle(single, translations)),
+    ].join(" "),
+  );
 }
 
 function ensureDir(dirPath) {
@@ -398,7 +513,7 @@ function normalizeIndividualMatch(entry, index) {
     description: result?.subEventDescription ?? null,
     overallScore: result?.overallScores ?? null,
     resultStatus: result?.resultStatus ?? null,
-    gameScores: splitGameScores(result?.gameScores),
+    gameScores: splitGameScores(result?.gameScores ?? result?.resultsGameScores),
     competitors,
     winnerOrg: inferWinnerOrg(result),
   };
@@ -502,7 +617,7 @@ async function fetchOfficialResultsCached(eventId, take, cacheDir, refreshCache)
   return payload;
 }
 
-function applyFilters(matches, args) {
+function applyFilters(matches, args, translations) {
   let filtered = matches.filter(Boolean);
 
   if (args.gender) {
@@ -512,27 +627,22 @@ function applyFilters(matches, args) {
 
   if (args.round) {
     const wantedRound = normalizeRound(args.round);
-    filtered = filtered.filter((match) => matchesRoundFilter(match.roundKey, wantedRound));
+    const roundContext = buildJaRoundContext(filtered);
+    filtered = filtered.filter((match) => matchesRoundFilter(match.roundKey, wantedRound, roundContext));
   }
 
   if (args.team) {
-    const needle = normalizeText(args.team);
+    const needle = normalizeSearchText(args.team);
     filtered = filtered.filter((match) =>
-      match.teams.some((team) => normalizeText(`${team.name} ${team.org}`).includes(needle)),
+      match.teams.some((team) =>
+        normalizeSearchText(getSearchTermsForTeam(team, translations).join(" ")).includes(needle),
+      ),
     );
   }
 
   if (args.contains) {
-    const needle = normalizeText(args.contains);
-    filtered = filtered.filter((match) =>
-      normalizeText(
-        [
-          match.description,
-          match.subEventType,
-          ...match.teams.flatMap((team) => [team.name, team.org]),
-        ].join(" "),
-      ).includes(needle),
-    );
+    const needle = normalizeSearchText(args.contains);
+    filtered = filtered.filter((match) => buildMatchSearchText(match, translations).includes(needle));
   }
 
   if (args.docCode) {
@@ -581,6 +691,38 @@ function getTieDisplaySide(match) {
   return winnerIndex === 1 ? 1 : 0;
 }
 
+function getDisplayedTeamIndexes(match) {
+  const leftIndex = getTieDisplaySide(match);
+  return {
+    leftIndex,
+    rightIndex: leftIndex === 0 ? 1 : 0,
+    leftOrg: match?.teams?.[leftIndex]?.org ?? null,
+    rightOrg: match?.teams?.[leftIndex === 0 ? 1 : 0]?.org ?? null,
+  };
+}
+
+function getSingleDisplayIndexes(single, displayedTeams) {
+  const leftOrg = displayedTeams?.leftOrg ?? null;
+  const rightOrg = displayedTeams?.rightOrg ?? null;
+  const competitors = Array.isArray(single?.competitors) ? single.competitors : [];
+
+  const leftByOrg = competitors.findIndex((competitor) => competitor?.org && competitor.org === leftOrg);
+  const rightByOrg = competitors.findIndex((competitor) => competitor?.org && competitor.org === rightOrg);
+
+  if (leftByOrg >= 0 && rightByOrg >= 0 && leftByOrg !== rightByOrg) {
+    return {
+      leftCompetitorIndex: leftByOrg,
+      rightCompetitorIndex: rightByOrg,
+    };
+  }
+
+  const leftCompetitorIndex = single?.tieLeftCompetitorIndex ?? 0;
+  return {
+    leftCompetitorIndex,
+    rightCompetitorIndex: leftCompetitorIndex === 0 ? 1 : 0,
+  };
+}
+
 function formatIndividualScoreJa(match, leftCompetitorIndex) {
   const [rawLeftSets, rawRightSets] = String(match.overallScore || "-").split("-");
   const leftSets = leftCompetitorIndex === 0 ? rawLeftSets : rawRightSets;
@@ -603,7 +745,15 @@ function formatIndividualScoreJa(match, leftCompetitorIndex) {
 }
 
 function buildJaRoundContext(matches) {
-  const knockoutOrder = ["round_of_128", "round_of_64", "round_of_32", "round_of_16"];
+  const knockoutOrder = [
+    "round_of_128",
+    "round_of_64",
+    "round_of_32",
+    "round_of_16",
+    "quarterfinal",
+    "semifinal",
+    "final",
+  ];
   const presentRounds = knockoutOrder.filter((roundKey) =>
     matches.some((match) => match.roundKey === roundKey),
   );
@@ -664,8 +814,7 @@ function formatJaHeader(match, translations, rules) {
 }
 
 function formatJaTeamLine(match, translations) {
-  const leftIndex = getTieDisplaySide(match);
-  const rightIndex = leftIndex === 0 ? 1 : 0;
+  const { leftIndex, rightIndex } = getDisplayedTeamIndexes(match);
   const rawScore = String(match.overallScore || "-");
   const [scoreA, scoreB] = rawScore.split("-");
   const score = leftIndex === 1 ? `${scoreB}-${scoreA}` : rawScore;
@@ -674,61 +823,60 @@ function formatJaTeamLine(match, translations) {
   return `　${left}　${score}　${right}`;
 }
 
-function formatJaSinglesLine(single, translations) {
-  const tieLeftIndex = single.tieLeftCompetitorIndex ?? 0;
-  const tieRightIndex = tieLeftIndex === 0 ? 1 : 0;
-  const score = formatIndividualScoreJa(single, tieLeftIndex);
-  const left = translate(single.competitors[tieLeftIndex]?.name || "", translations.players);
-  const right = translate(single.competitors[tieRightIndex]?.name || "", translations.players);
+function formatJaSinglesLine(single, translations, displayedTeams) {
+  const { leftCompetitorIndex, rightCompetitorIndex } = getSingleDisplayIndexes(single, displayedTeams);
+  const score = formatIndividualScoreJa(single, leftCompetitorIndex);
+  const left = translatePlayer(single.competitors[leftCompetitorIndex]?.name || "", translations);
+  const right = translatePlayer(single.competitors[rightCompetitorIndex]?.name || "", translations);
   const winnerIndex = getWinnerIndexFromScore(single.overallScore);
 
-  if (winnerIndex === tieLeftIndex) {
+  if (winnerIndex === leftCompetitorIndex) {
     return `○${left}　${score}　${right}`;
   }
-  if (winnerIndex === tieRightIndex) {
+  if (winnerIndex === rightCompetitorIndex) {
     return `　${left}　${score}　${right}○`;
   }
   return `　${left}　${score}　${right}`;
 }
 
-function formatJaPendingLine(match, index, translations) {
-  const homePlayers = match.singles.slice(0, 3).map((single) => single.competitors[0]?.name || "");
-  const awayPlayers = match.singles.slice(0, 3).map((single) => single.competitors[1]?.name || "");
-  const tieLeftIndex = getTieDisplaySide(match);
-  const schedule = tieLeftIndex === 0
-    ? [
-        [homePlayers[0], awayPlayers[1]],
-        [homePlayers[1], awayPlayers[0]],
-      ]
-    : [
-        [awayPlayers[1], homePlayers[0]],
-        [awayPlayers[0], homePlayers[1]],
-      ];
+function formatJaPendingLine(match, index, translations, displayedTeams) {
+  const leftPlayers = match.singles.slice(0, 3).map((single) => {
+    const { leftCompetitorIndex } = getSingleDisplayIndexes(single, displayedTeams);
+    return single.competitors[leftCompetitorIndex]?.name || "";
+  });
+  const rightPlayers = match.singles.slice(0, 3).map((single) => {
+    const { rightCompetitorIndex } = getSingleDisplayIndexes(single, displayedTeams);
+    return single.competitors[rightCompetitorIndex]?.name || "";
+  });
+  const schedule = [
+    [leftPlayers[0], rightPlayers[1]],
+    [leftPlayers[1], rightPlayers[0]],
+  ];
   const pair = schedule[index - 4] || [];
-  const left = translate(pair[0] || "", translations.players);
-  const right = translate(pair[1] || "", translations.players);
+  const left = translatePlayer(pair[0] || "", translations);
+  const right = translatePlayer(pair[1] || "", translations);
   return `　${left}　-　${right}`;
 }
 
 function formatJapanese(matches, translations, rules, roundContext) {
   return matches
     .map((match) => {
-      const tieLeftIndex = getTieDisplaySide(match);
+      const displayedTeams = getDisplayedTeamIndexes(match);
       const lines = [
         formatJaHeader({ ...match, roundContext }, translations, rules),
         formatJaTeamLine(match, translations),
         ...match.singles.map((single) =>
-          formatJaSinglesLine({ ...single, tieLeftCompetitorIndex: tieLeftIndex }, translations),
+          formatJaSinglesLine(single, translations, displayedTeams),
         ),
       ];
 
       for (let i = match.singles.length + 1; i <= 5; i += 1) {
-        lines.push(formatJaPendingLine(match, i, translations));
+        lines.push(formatJaPendingLine(match, i, translations, displayedTeams));
       }
 
       return lines.join("\n");
     })
-    .join("\n");
+    .join("\n\n");
 }
 
 function formatList(matches) {
@@ -801,8 +949,8 @@ async function getProcessedMatches(options = {}) {
 
   const payload = await fetchOfficialResultsCached(args.event, args.take, args.cacheDir, args.refreshCache);
   const normalized = payload.map(normalizeTeamMatch).filter(Boolean);
-  const filtered = applyFilters(normalized, args);
   const translations = readTranslations(args.translations);
+  const filtered = applyFilters(normalized, args, translations);
   const rules = readRules(args.rules);
   const jaRoundContext = buildJaRoundContext(
     normalized.filter((match) => !args.gender || match.gender === inferGender(args.gender)),
