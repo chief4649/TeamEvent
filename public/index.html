@@ -1,0 +1,686 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>WTT Team Match Formatter</title>
+    <style>
+      :root {
+        --bg: #f7f1e6;
+        --panel: rgba(255, 251, 245, 0.92);
+        --ink: #1c1917;
+        --muted: #6b6258;
+        --line: rgba(89, 73, 58, 0.16);
+        --accent: #ab2f20;
+        --accent-2: #0f766e;
+        --shadow: 0 24px 60px rgba(84, 54, 28, 0.16);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(171, 47, 32, 0.16), transparent 30%),
+          radial-gradient(circle at top right, rgba(15, 118, 110, 0.14), transparent 24%),
+          linear-gradient(180deg, #efe3cf 0%, var(--bg) 44%, #f4ede2 100%);
+      }
+
+      .shell {
+        width: min(1120px, calc(100% - 32px));
+        margin: 32px auto;
+        display: grid;
+        gap: 20px;
+      }
+
+      .hero,
+      .panel {
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        backdrop-filter: blur(12px);
+      }
+
+      .hero {
+        padding: 28px;
+        position: relative;
+        overflow: hidden;
+      }
+
+      .hero::after {
+        content: "";
+        position: absolute;
+        inset: auto -5% -30% 50%;
+        height: 220px;
+        background: radial-gradient(circle, rgba(171, 47, 32, 0.18), transparent 60%);
+        pointer-events: none;
+      }
+
+      h1 {
+        margin: 0 0 10px;
+        font-size: clamp(2rem, 4vw, 3.4rem);
+        line-height: 0.98;
+        letter-spacing: -0.04em;
+      }
+
+      .subtitle {
+        margin: 0;
+        max-width: 58rem;
+        color: var(--muted);
+        line-height: 1.7;
+      }
+
+      .grid {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: 360px minmax(0, 1fr);
+      }
+
+      .panel {
+        padding: 20px;
+      }
+
+      form {
+        display: grid;
+        gap: 14px;
+      }
+
+      label {
+        display: grid;
+        gap: 6px;
+        font-size: 0.92rem;
+        color: var(--muted);
+      }
+
+      input,
+      select,
+      textarea,
+      button {
+        font: inherit;
+      }
+
+      input,
+      select {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.86);
+        padding: 12px 14px;
+        color: var(--ink);
+      }
+
+      .row {
+        display: grid;
+        gap: 12px;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .actions {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-top: 4px;
+      }
+
+      button {
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 18px;
+        cursor: pointer;
+      }
+
+      .primary {
+        background: var(--accent);
+        color: #fff9f5;
+      }
+
+      .secondary {
+        background: rgba(28, 25, 23, 0.08);
+        color: var(--ink);
+      }
+
+      .ghost {
+        background: rgba(15, 118, 110, 0.12);
+        color: var(--accent-2);
+      }
+
+      .result-meta {
+        display: flex;
+        gap: 10px;
+        flex-wrap: wrap;
+        margin-bottom: 14px;
+      }
+
+      .chip {
+        border-radius: 999px;
+        padding: 8px 12px;
+        font-size: 0.84rem;
+        background: rgba(28, 25, 23, 0.06);
+        color: var(--muted);
+      }
+
+      pre {
+        margin: 0;
+        min-height: 480px;
+        border-radius: 18px;
+        padding: 18px;
+        background: #1b1d1f;
+        color: #f9f4ea;
+        overflow: auto;
+        white-space: pre-wrap;
+        word-break: break-word;
+        line-height: 1.7;
+        font-family: "SFMono-Regular", "Menlo", monospace;
+      }
+
+      .hint {
+        font-size: 0.84rem;
+        color: var(--muted);
+        line-height: 1.6;
+      }
+
+      .admin-note {
+        margin-top: 10px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(171, 47, 32, 0.08);
+        color: #7f1d1d;
+        font-size: 0.84rem;
+        line-height: 1.6;
+      }
+
+      .editor-grid {
+        display: grid;
+        gap: 20px;
+        grid-template-columns: 1fr 1fr;
+      }
+
+      .editor-box {
+        display: grid;
+        gap: 10px;
+      }
+
+      .bulk-box {
+        margin-top: 12px;
+        padding: 14px;
+        border: 1px dashed var(--line);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.5);
+      }
+
+      .bulk-box textarea {
+        min-height: 180px;
+      }
+
+      textarea {
+        width: 100%;
+        min-height: 320px;
+        border: 1px solid var(--line);
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.86);
+        padding: 14px;
+        color: var(--ink);
+        font-family: "SFMono-Regular", "Menlo", monospace;
+        line-height: 1.5;
+        resize: vertical;
+      }
+
+      .status {
+        margin: 0 0 12px;
+        color: var(--muted);
+      }
+
+      @media (max-width: 920px) {
+        .grid {
+          grid-template-columns: 1fr;
+        }
+
+        .editor-grid {
+          grid-template-columns: 1fr;
+        }
+      }
+
+      @media (max-width: 640px) {
+        .row {
+          grid-template-columns: 1fr;
+        }
+
+        .shell {
+          width: min(100% - 20px, 1120px);
+          margin: 16px auto 28px;
+        }
+
+        .hero,
+        .panel {
+          border-radius: 18px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="shell">
+      <section class="hero">
+        <h1>WTT Team Match Formatter</h1>
+        <p class="subtitle">
+          WTT の団体戦結果を検索して、日本語書式でそのまま使える形に整える MVP です。
+          釜山 2024 のような通常形式と、ロンドン 2026 の Stage 1A / Stage 1B / Preliminary Round 想定のラウンド指定に対応しています。
+        </p>
+      </section>
+
+      <section class="grid">
+        <aside class="panel">
+          <form id="query-form">
+            <label>
+              Event ID
+              <input name="event" value="2751" required inputmode="numeric">
+            </label>
+
+            <div class="row">
+              <label>
+                Gender
+                <select name="gender">
+                  <option value="">All</option>
+                  <option value="men">Men</option>
+                  <option value="women">Women</option>
+                </select>
+              </label>
+
+              <label>
+                Format
+                <select name="format">
+                  <option value="ja" selected>Japanese</option>
+                  <option value="list">List</option>
+                  <option value="text">Text</option>
+                  <option value="json">JSON</option>
+                </select>
+              </label>
+            </div>
+
+            <label>
+              Admin Token
+              <input name="adminToken" id="admin-token" type="password" placeholder="設定編集用。検索だけなら空でも可">
+            </label>
+
+            <label>
+              Round
+              <input name="round" placeholder="group / round of 16 / stage 1b / preliminary round">
+            </label>
+
+            <label>
+              Contains
+              <input name="contains" placeholder="Kazakhstan / Hong Kong / Austria">
+            </label>
+
+            <label>
+              Team
+              <input name="team" placeholder="JPN / Japan / Hong Kong">
+            </label>
+
+            <div class="row">
+              <label>
+                Document Code
+                <input name="docCode" placeholder="Optional">
+              </label>
+
+              <label>
+                Limit
+                <input name="limit" type="number" min="1" placeholder="Optional">
+              </label>
+            </div>
+
+            <label>
+              <input type="checkbox" name="refreshCache" value="true">
+              Refresh cache before fetching
+            </label>
+
+            <div class="actions">
+              <button class="primary" type="submit">Run Query</button>
+              <button class="secondary" type="button" id="copy-button">Copy Output</button>
+              <button class="ghost" type="button" data-example="busan">Busan Example</button>
+              <button class="ghost" type="button" data-example="london">London Example</button>
+            </div>
+          </form>
+
+          <p class="hint">
+            London 2026 は大会前だと結果 API が空の可能性があります。その場合でも、round 指定は
+            <code>stage 1a</code> / <code>stage 1b</code> / <code>preliminary round</code> を使える前提で作っています。
+          </p>
+        </aside>
+
+        <section class="panel">
+          <p class="status" id="status">Ready.</p>
+          <div class="result-meta" id="meta"></div>
+          <pre id="output">ここに整形結果が表示されます。</pre>
+        </section>
+      </section>
+
+      <section class="panel">
+        <div class="editor-grid">
+          <section class="editor-box">
+            <strong>Translations JSON</strong>
+            <p class="hint">選手名や国名の辞書をここで編集できます。下の一括追加欄では、`英語名 日本語名` を行ごとに貼り付けてまとめて反映できます。単一スペース区切りのときは最後の空白で分割します。</p>
+            <div class="admin-note">公開環境で `ADMIN_TOKEN` を設定した場合、この編集欄の読込と保存には Admin Token が必要です。</div>
+            <div class="actions">
+              <button class="secondary" type="button" id="load-translations">Load</button>
+              <button class="primary" type="button" id="save-translations">Save</button>
+            </div>
+            <textarea id="translations-editor" spellcheck="false"></textarea>
+
+            <div class="bulk-box">
+              <strong>Bulk Add</strong>
+              <div class="row">
+                <label>
+                  Target
+                  <select id="bulk-target">
+                    <option value="players">Players</option>
+                    <option value="teams">Teams</option>
+                    <option value="rounds">Rounds</option>
+                  </select>
+                </label>
+              </div>
+              <textarea id="bulk-translations" spellcheck="false" placeholder="A 日本語A&#10;B 日本語B&#10;C 日本語C"></textarea>
+              <div class="actions">
+                <button class="ghost" type="button" id="apply-bulk">Apply To JSON</button>
+                <button class="secondary" type="button" id="clear-bulk">Clear</button>
+              </div>
+            </div>
+          </section>
+
+          <section class="editor-box">
+            <strong>Rules JSON</strong>
+            <p class="hint">見出し表記やラウンド名ルールをここで編集できます。</p>
+            <div class="actions">
+              <button class="secondary" type="button" id="load-rules">Load</button>
+              <button class="primary" type="button" id="save-rules">Save</button>
+            </div>
+            <textarea id="rules-editor" spellcheck="false"></textarea>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script>
+      const form = document.getElementById("query-form");
+      const status = document.getElementById("status");
+      const output = document.getElementById("output");
+      const meta = document.getElementById("meta");
+      const copyButton = document.getElementById("copy-button");
+      const translationsEditor = document.getElementById("translations-editor");
+      const rulesEditor = document.getElementById("rules-editor");
+      const bulkTarget = document.getElementById("bulk-target");
+      const bulkTranslations = document.getElementById("bulk-translations");
+      const adminTokenInput = document.getElementById("admin-token");
+
+      function setStatus(message) {
+        status.textContent = message;
+      }
+
+      function setMeta(items) {
+        meta.innerHTML = "";
+        items.forEach((item) => {
+          const chip = document.createElement("span");
+          chip.className = "chip";
+          chip.textContent = item;
+          meta.appendChild(chip);
+        });
+      }
+
+      function buildQueryString(formData) {
+        const searchParams = new URLSearchParams();
+        for (const [key, value] of formData.entries()) {
+          if (value) {
+            searchParams.set(key, value);
+          }
+        }
+        return searchParams.toString();
+      }
+
+      function buildAuthHeaders() {
+        const token = adminTokenInput.value.trim();
+        return token ? { Authorization: `Bearer ${token}` } : {};
+      }
+
+      async function loadConfig(kind) {
+        const authHeaders = buildAuthHeaders();
+        const response = await fetch(`/api/config/${kind}`, {
+          headers: authHeaders,
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || `Failed to load ${kind}`);
+        }
+
+        const text = JSON.stringify(data.data, null, 2);
+        if (kind === "translations") {
+          translationsEditor.value = text;
+        } else {
+          rulesEditor.value = text;
+        }
+      }
+
+      async function saveConfig(kind) {
+        const body = kind === "translations" ? translationsEditor.value : rulesEditor.value;
+        const response = await fetch(`/api/config/${kind}`, {
+          method: "PUT",
+          headers: {
+            "content-type": "application/json",
+            ...buildAuthHeaders(),
+          },
+          body,
+        });
+        const data = await response.json();
+        if (!response.ok) {
+          throw new Error(data.error || `Failed to save ${kind}`);
+        }
+      }
+
+      function parseBulkTranslations(text) {
+        return text
+          .split(/\r?\n/)
+          .map((line) => line.trim())
+          .filter(Boolean)
+          .map((line) => {
+            const explicitMatch =
+              line.match(/^(.+?)\s*[,，、､]\s*(.+)$/) ||
+              line.match(/^(.+?)\s{2,}(.+)$/) ||
+              line.match(/^(.+?)\t+(.+)$/);
+
+            if (explicitMatch) {
+              return {
+                source: explicitMatch[1].trim(),
+                translated: explicitMatch[2].trim(),
+              };
+            }
+
+            const lastSpaceIndex = line.lastIndexOf(" ");
+            if (lastSpaceIndex <= 0 || lastSpaceIndex === line.length - 1) {
+              throw new Error(`Could not parse line: ${line}`);
+            }
+
+            return {
+              source: line.slice(0, lastSpaceIndex).trim(),
+              translated: line.slice(lastSpaceIndex + 1).trim(),
+            };
+          });
+      }
+
+      async function ensureTranslationsEditorLoaded() {
+        if (translationsEditor.value.trim()) {
+          return;
+        }
+        await loadConfig("translations");
+      }
+
+      async function applyBulkTranslations() {
+        if (!bulkTranslations.value.trim()) {
+          throw new Error("Bulk Add is empty.");
+        }
+
+        await ensureTranslationsEditorLoaded();
+        const target = bulkTarget.value;
+        const entries = parseBulkTranslations(bulkTranslations.value);
+        const parsed = JSON.parse(translationsEditor.value || "{}");
+        parsed[target] = parsed[target] || {};
+
+        entries.forEach(({ source, translated }) => {
+          parsed[target][source] = translated;
+        });
+
+        translationsEditor.value = JSON.stringify(parsed, null, 2);
+        setStatus(`Applied ${entries.length} entr${entries.length === 1 ? "y" : "ies"} to ${target}.`);
+        translationsEditor.focus();
+        translationsEditor.scrollTop = 0;
+      }
+
+      async function runQuery() {
+        const formData = new FormData(form);
+        const query = buildQueryString(formData);
+        setStatus("Loading...");
+        output.textContent = "";
+        setMeta([]);
+
+        try {
+          const response = await fetch(`/api/team-matches?${query}`);
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || "Request failed");
+          }
+
+          output.textContent = data.output || "(no output)";
+          setStatus(
+            data.meta.returnedMatches === 0
+              ? "0件でした。大会前で結果 API が空の可能性があります。"
+              : `Loaded ${data.meta.returnedMatches} match(es).`,
+          );
+          setMeta([
+            `Fetched: ${data.meta.fetchedMatches}`,
+            `Returned: ${data.meta.returnedMatches}`,
+            ...data.meta.availableRounds.slice(0, 4),
+          ]);
+          history.replaceState(null, "", `/?${query}`);
+        } catch (error) {
+          setStatus("Failed.");
+          output.textContent = error.message;
+        }
+      }
+
+      form.addEventListener("submit", (event) => {
+        event.preventDefault();
+        runQuery();
+      });
+
+      copyButton.addEventListener("click", async () => {
+        try {
+          await navigator.clipboard.writeText(output.textContent);
+          setStatus("Copied output.");
+        } catch (error) {
+          setStatus("Copy failed.");
+        }
+      });
+
+      document.getElementById("load-translations").addEventListener("click", async () => {
+        try {
+          await loadConfig("translations");
+          setStatus("Loaded translations.");
+        } catch (error) {
+          setStatus(error.message);
+        }
+      });
+
+      document.getElementById("save-translations").addEventListener("click", async () => {
+        try {
+          await saveConfig("translations");
+          setStatus("Saved translations.");
+        } catch (error) {
+          setStatus(error.message);
+        }
+      });
+
+      document.getElementById("load-rules").addEventListener("click", async () => {
+        try {
+          await loadConfig("rules");
+          setStatus("Loaded rules.");
+        } catch (error) {
+          setStatus(error.message);
+        }
+      });
+
+      document.getElementById("save-rules").addEventListener("click", async () => {
+        try {
+          await saveConfig("rules");
+          setStatus("Saved rules.");
+        } catch (error) {
+          setStatus(error.message);
+        }
+      });
+
+      document.getElementById("apply-bulk").addEventListener("click", async () => {
+        try {
+          await applyBulkTranslations();
+        } catch (error) {
+          setStatus(error.message);
+        }
+      });
+
+      document.getElementById("clear-bulk").addEventListener("click", () => {
+        bulkTranslations.value = "";
+        setStatus("Cleared bulk input.");
+      });
+
+      document.querySelectorAll("[data-example]").forEach((button) => {
+        button.addEventListener("click", () => {
+          const kind = button.getAttribute("data-example");
+          if (kind === "busan") {
+            form.event.value = "2751";
+            form.gender.value = "women";
+            form.round.value = "";
+            form.contains.value = "Kazakhstan";
+            form.team.value = "";
+            form.docCode.value = "";
+            form.limit.value = "";
+            form.format.value = "ja";
+            form.refreshCache.checked = false;
+            return;
+          }
+
+          form.event.value = "3216";
+          form.gender.value = "men";
+          form.round.value = "stage 1b";
+          form.contains.value = "";
+          form.team.value = "";
+          form.docCode.value = "";
+          form.limit.value = "";
+          form.format.value = "list";
+          form.refreshCache.checked = false;
+        });
+      });
+
+      (() => {
+        const params = new URLSearchParams(location.search);
+        for (const [key, value] of params.entries()) {
+          const field = form.elements.namedItem(key);
+          if (!field) {
+            continue;
+          }
+          if (field.type === "checkbox") {
+            field.checked = value === "true" || value === "1";
+          } else {
+            field.value = value;
+          }
+        }
+
+        if (params.get("event")) {
+          runQuery();
+        }
+
+        loadConfig("translations").catch(() => {});
+        loadConfig("rules").catch(() => {});
+      })();
+    </script>
+  </body>
+</html>

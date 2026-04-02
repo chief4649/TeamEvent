@@ -1,0 +1,14 @@
+{
+  "name": "ttreport",
+  "version": "0.1.0",
+  "private": true,
+  "description": "WTT team match formatter MVP web app",
+  "engines": {
+    "node": ">=22"
+  },
+  "scripts": {
+    "start": "node server.js",
+    "start:admin": "ADMIN_TOKEN=secret-token PORT=3001 node server.js",
+    "cli": "node extract_team_matches.js"
+  }
+}

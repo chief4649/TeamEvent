@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: ttreport
+    runtime: docker
+    plan: starter
+    autoDeploy: true
+    healthCheckPath: /api/health
+    envVars:
+      - key: HOST
+        value: 0.0.0.0
+      - key: PORT
+        value: 3000
+      - key: DATA_DIR
+        value: /var/data
+      - key: TRUST_PROXY
+        value: "1"
+      - key: RATE_LIMIT_WINDOW_MS
+        value: "60000"
+      - key: RATE_LIMIT_MAX_REQUESTS
+        value: "60"
+      - key: ADMIN_TOKEN
+        sync: false
+    disk:
+      name: ttreport-data
+      mountPath: /var/data
+      sizeGB: 1
