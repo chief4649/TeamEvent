@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>WTT Team Match Formatter</title>
+    <title>団体戦記録出力システム</title>
     <style>
       :root {
         --bg: #f7f1e6;
@@ -265,7 +265,7 @@
   <body>
     <main class="shell">
       <section class="hero">
-        <h1>WTT Team Match Formatter</h1>
+        <h1>団体戦記録出力システム</h1>
         <p class="subtitle">
           WTT の団体戦結果を検索して、日本語書式でそのまま使える形に整える MVP です。
           釜山 2024 のような通常形式と、ロンドン 2026 の Stage 1A / Stage 1B / Preliminary Round 想定のラウンド指定に対応しています。
@@ -276,84 +276,71 @@
         <aside class="panel">
           <form id="query-form">
             <label>
-              Event ID
-              <input name="event" value="2751" required inputmode="numeric">
+              大会ID
+              <select name="event" required>
+                <option value="3216">2026 ロンドン</option>
+                <option value="2751" selected>2024 釜山</option>
+                <option value="2535">2022 成都</option>
+              </select>
             </label>
 
             <div class="row">
               <label>
-                Gender
+                種別
                 <select name="gender">
-                  <option value="">All</option>
-                  <option value="men">Men</option>
-                  <option value="women">Women</option>
+                  <option value="">すべて</option>
+                  <option value="men">男子</option>
+                  <option value="women">女子</option>
                 </select>
               </label>
 
               <label>
-                Format
+                出力形式
                 <select name="format">
-                  <option value="ja" selected>Japanese</option>
-                  <option value="list">List</option>
-                  <option value="text">Text</option>
+                  <option value="ja" selected>日本語整形</option>
+                  <option value="list">一覧</option>
+                  <option value="text">テキスト</option>
                   <option value="json">JSON</option>
                 </select>
               </label>
             </div>
 
             <label>
-              Admin Token
-              <input name="adminToken" id="admin-token" type="password" placeholder="設定編集用。検索だけなら空でも可">
+              ラウンド
+              <input name="round" placeholder="準々決勝 / 準決勝 / 決勝 / 1回戦 / QF / SF / stage 1b">
             </label>
 
             <label>
-              Round
-              <input name="round" placeholder="group / round of 16 / stage 1b / preliminary round">
+              含む文字
+              <input name="contains" placeholder="張本智和 / 戸上 / 日本 / JPN / Kazakhstan">
             </label>
 
             <label>
-              Contains
-              <input name="contains" placeholder="Kazakhstan / Hong Kong / Austria">
-            </label>
-
-            <label>
-              Team
+              チーム
               <input name="team" placeholder="JPN / Japan / Hong Kong">
             </label>
 
-            <div class="row">
-              <label>
-                Document Code
-                <input name="docCode" placeholder="Optional">
-              </label>
-
-              <label>
-                Limit
-                <input name="limit" type="number" min="1" placeholder="Optional">
-              </label>
-            </div>
-
             <label>
               <input type="checkbox" name="refreshCache" value="true">
-              Refresh cache before fetching
+              取得前にキャッシュを更新する
             </label>
 
             <div class="actions">
-              <button class="primary" type="submit">Run Query</button>
-              <button class="secondary" type="button" id="copy-button">Copy Output</button>
-              <button class="ghost" type="button" data-example="busan">Busan Example</button>
-              <button class="ghost" type="button" data-example="london">London Example</button>
+              <button class="primary" type="submit">検索する</button>
+              <button class="secondary" type="button" id="copy-button">出力をコピー</button>
             </div>
           </form>
 
           <p class="hint">
-            London 2026 は大会前だと結果 API が空の可能性があります。その場合でも、round 指定は
-            <code>stage 1a</code> / <code>stage 1b</code> / <code>preliminary round</code> を使える前提で作っています。
+            London 2026 は大会前だと結果 API が空の可能性があります。その場合でも、ラウンド指定は
+            <code>準々決勝</code> / <code>準決勝</code> / <code>決勝</code> / <code>1回戦</code> /
+            <code>QF</code> / <code>SF</code> / <code>stage 1a</code> / <code>stage 1b</code> /
+            <code>preliminary round</code> のように柔軟に入力できます。
           </p>
         </aside>
 
         <section class="panel">
-          <p class="status" id="status">Ready.</p>
+          <p class="status" id="status">準備できました。</p>
           <div class="result-meta" id="meta"></div>
           <pre id="output">ここに整形結果が表示されます。</pre>
         </section>
@@ -362,41 +349,45 @@
       <section class="panel">
         <div class="editor-grid">
           <section class="editor-box">
-            <strong>Translations JSON</strong>
+            <strong>辞書 JSON</strong>
             <p class="hint">選手名や国名の辞書をここで編集できます。下の一括追加欄では、`英語名 日本語名` を行ごとに貼り付けてまとめて反映できます。単一スペース区切りのときは最後の空白で分割します。</p>
-            <div class="admin-note">公開環境で `ADMIN_TOKEN` を設定した場合、この編集欄の読込と保存には Admin Token が必要です。</div>
+            <div class="admin-note">公開環境で `ADMIN_TOKEN` を設定した場合、この編集欄の読込と保存には管理トークンが必要です。</div>
+            <label>
+              管理トークン
+              <input name="adminToken" id="admin-token" type="password" placeholder="辞書・ルール編集用。検索だけなら空でも可">
+            </label>
             <div class="actions">
-              <button class="secondary" type="button" id="load-translations">Load</button>
-              <button class="primary" type="button" id="save-translations">Save</button>
+              <button class="secondary" type="button" id="load-translations">読み込む</button>
+              <button class="primary" type="button" id="save-translations">保存する</button>
             </div>
             <textarea id="translations-editor" spellcheck="false"></textarea>
 
             <div class="bulk-box">
-              <strong>Bulk Add</strong>
+              <strong>一括追加</strong>
               <div class="row">
                 <label>
-                  Target
+                  追加先
                   <select id="bulk-target">
-                    <option value="players">Players</option>
-                    <option value="teams">Teams</option>
-                    <option value="rounds">Rounds</option>
+                    <option value="players">選手</option>
+                    <option value="teams">チーム</option>
+                    <option value="rounds">ラウンド</option>
                   </select>
                 </label>
               </div>
               <textarea id="bulk-translations" spellcheck="false" placeholder="A 日本語A&#10;B 日本語B&#10;C 日本語C"></textarea>
               <div class="actions">
-                <button class="ghost" type="button" id="apply-bulk">Apply To JSON</button>
-                <button class="secondary" type="button" id="clear-bulk">Clear</button>
+                <button class="ghost" type="button" id="apply-bulk">JSON に反映</button>
+                <button class="secondary" type="button" id="clear-bulk">クリア</button>
               </div>
             </div>
           </section>
 
           <section class="editor-box">
-            <strong>Rules JSON</strong>
+            <strong>ルール JSON</strong>
             <p class="hint">見出し表記やラウンド名ルールをここで編集できます。</p>
             <div class="actions">
-              <button class="secondary" type="button" id="load-rules">Load</button>
-              <button class="primary" type="button" id="save-rules">Save</button>
+              <button class="secondary" type="button" id="load-rules">読み込む</button>
+              <button class="primary" type="button" id="save-rules">保存する</button>
             </div>
             <textarea id="rules-editor" spellcheck="false"></textarea>
           </section>
@@ -452,7 +443,7 @@
         });
         const data = await response.json();
         if (!response.ok) {
-          throw new Error(data.error || `Failed to load ${kind}`);
+          throw new Error(data.error || `${kind} の読み込みに失敗しました。`);
         }
 
         const text = JSON.stringify(data.data, null, 2);
@@ -475,7 +466,7 @@
         });
         const data = await response.json();
         if (!response.ok) {
-          throw new Error(data.error || `Failed to save ${kind}`);
+          throw new Error(data.error || `${kind} の保存に失敗しました。`);
         }
       }
 
@@ -499,7 +490,7 @@
 
             const lastSpaceIndex = line.lastIndexOf(" ");
             if (lastSpaceIndex <= 0 || lastSpaceIndex === line.length - 1) {
-              throw new Error(`Could not parse line: ${line}`);
+              throw new Error(`行を解釈できませんでした: ${line}`);
             }
 
             return {
@@ -518,7 +509,7 @@
 
       async function applyBulkTranslations() {
         if (!bulkTranslations.value.trim()) {
-          throw new Error("Bulk Add is empty.");
+          throw new Error("一括追加の入力が空です。");
         }
 
         await ensureTranslationsEditorLoaded();
@@ -532,7 +523,8 @@
         });
 
         translationsEditor.value = JSON.stringify(parsed, null, 2);
-        setStatus(`Applied ${entries.length} entr${entries.length === 1 ? "y" : "ies"} to ${target}.`);
+        const targetLabel = target === "players" ? "選手" : target === "teams" ? "チーム" : "ラウンド";
+        setStatus(`${entries.length}件を${targetLabel}に反映しました。`);
         translationsEditor.focus();
         translationsEditor.scrollTop = 0;
       }
@@ -540,7 +532,7 @@
       async function runQuery() {
         const formData = new FormData(form);
         const query = buildQueryString(formData);
-        setStatus("Loading...");
+        setStatus("読み込み中...");
         output.textContent = "";
         setMeta([]);
 
@@ -548,23 +540,23 @@
           const response = await fetch(`/api/team-matches?${query}`);
           const data = await response.json();
           if (!response.ok) {
-            throw new Error(data.error || "Request failed");
+            throw new Error(data.error || "取得に失敗しました。");
           }
 
-          output.textContent = data.output || "(no output)";
+          output.textContent = data.output || "（出力なし）";
           setStatus(
             data.meta.returnedMatches === 0
               ? "0件でした。大会前で結果 API が空の可能性があります。"
-              : `Loaded ${data.meta.returnedMatches} match(es).`,
+              : `${data.meta.returnedMatches}件を読み込みました。`,
           );
           setMeta([
-            `Fetched: ${data.meta.fetchedMatches}`,
-            `Returned: ${data.meta.returnedMatches}`,
+            `取得件数: ${data.meta.fetchedMatches}`,
+            `表示件数: ${data.meta.returnedMatches}`,
             ...data.meta.availableRounds.slice(0, 4),
           ]);
           history.replaceState(null, "", `/?${query}`);
         } catch (error) {
-          setStatus("Failed.");
+          setStatus("失敗しました。");
           output.textContent = error.message;
         }
       }
@@ -577,16 +569,16 @@
       copyButton.addEventListener("click", async () => {
         try {
           await navigator.clipboard.writeText(output.textContent);
-          setStatus("Copied output.");
+          setStatus("出力をコピーしました。");
         } catch (error) {
-          setStatus("Copy failed.");
+          setStatus("コピーに失敗しました。");
         }
       });
 
       document.getElementById("load-translations").addEventListener("click", async () => {
         try {
           await loadConfig("translations");
-          setStatus("Loaded translations.");
+          setStatus("辞書を読み込みました。");
         } catch (error) {
           setStatus(error.message);
         }
@@ -595,7 +587,7 @@
       document.getElementById("save-translations").addEventListener("click", async () => {
         try {
           await saveConfig("translations");
-          setStatus("Saved translations.");
+          setStatus("辞書を保存しました。");
         } catch (error) {
           setStatus(error.message);
         }
@@ -604,7 +596,7 @@
       document.getElementById("load-rules").addEventListener("click", async () => {
         try {
           await loadConfig("rules");
-          setStatus("Loaded rules.");
+          setStatus("ルールを読み込みました。");
         } catch (error) {
           setStatus(error.message);
         }
@@ -613,7 +605,7 @@
       document.getElementById("save-rules").addEventListener("click", async () => {
         try {
           await saveConfig("rules");
-          setStatus("Saved rules.");
+          setStatus("ルールを保存しました。");
         } catch (error) {
           setStatus(error.message);
         }
@@ -629,35 +621,7 @@
 
       document.getElementById("clear-bulk").addEventListener("click", () => {
         bulkTranslations.value = "";
-        setStatus("Cleared bulk input.");
-      });
-
-      document.querySelectorAll("[data-example]").forEach((button) => {
-        button.addEventListener("click", () => {
-          const kind = button.getAttribute("data-example");
-          if (kind === "busan") {
-            form.event.value = "2751";
-            form.gender.value = "women";
-            form.round.value = "";
-            form.contains.value = "Kazakhstan";
-            form.team.value = "";
-            form.docCode.value = "";
-            form.limit.value = "";
-            form.format.value = "ja";
-            form.refreshCache.checked = false;
-            return;
-          }
-
-          form.event.value = "3216";
-          form.gender.value = "men";
-          form.round.value = "stage 1b";
-          form.contains.value = "";
-          form.team.value = "";
-          form.docCode.value = "";
-          form.limit.value = "";
-          form.format.value = "list";
-          form.refreshCache.checked = false;
-        });
+        setStatus("一括追加の入力をクリアしました。");
       });
 
       (() => {
