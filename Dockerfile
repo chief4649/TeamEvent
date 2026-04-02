@@ -8,7 +8,6 @@ COPY server.js ./
 COPY translations.ja.json ./
 COPY rules.json ./
 COPY public ./public
-COPY .cache ./.cache
 
 ENV NODE_ENV=production
 ENV HOST=0.0.0.0
