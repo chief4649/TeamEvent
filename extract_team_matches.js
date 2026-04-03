@@ -222,6 +222,7 @@ function normalizeRound(value) {
     ["round_of_64", ["ベスト64", "64強"]],
     ["round_of_32", ["ベスト32", "32強"]],
     ["round_of_16", ["ベスト16", "16強"]],
+    ["qualifying", ["予選"]],
     ["group", ["グループ", "予選リーグ"]],
     ["preliminary_round", ["予備ラウンド"]],
   ];
@@ -277,6 +278,15 @@ function matchesRoundFilter(matchRoundKey, wantedRound, context = null) {
 
   if (wantedRound === "group") {
     return matchRoundKey === "group" || matchRoundKey.endsWith("_group");
+  }
+
+  if (wantedRound === "qualifying") {
+    return (
+      matchRoundKey === "preliminary_round" ||
+      matchRoundKey === "group" ||
+      matchRoundKey.startsWith("group ") ||
+      matchRoundKey.endsWith("_group")
+    );
   }
 
   if (wantedRound === "stage_1a" || wantedRound === "stage_1b") {

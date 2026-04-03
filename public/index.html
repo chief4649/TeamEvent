@@ -63,7 +63,7 @@
 
       h1 {
         margin: 0 0 10px;
-        font-size: clamp(2rem, 4vw, 3.4rem);
+        font-size: clamp(1rem, 2vw, 1.7rem);
         line-height: 0.98;
         letter-spacing: -0.04em;
       }
@@ -83,6 +83,11 @@
 
       .panel {
         padding: 20px;
+      }
+
+      details.panel {
+        padding: 0;
+        overflow: hidden;
       }
 
       form {
@@ -254,6 +259,40 @@
         color: var(--muted);
       }
 
+      .admin-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 20px;
+        cursor: pointer;
+        list-style: none;
+        user-select: none;
+      }
+
+      .admin-summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .admin-summary::after {
+        content: "開く";
+        color: var(--accent-2);
+        font-size: 0.9rem;
+      }
+
+      details[open] .admin-summary::after {
+        content: "閉じる";
+      }
+
+      .admin-summary strong {
+        font-size: 1rem;
+      }
+
+      .admin-content {
+        padding: 0 20px 20px;
+        border-top: 1px solid var(--line);
+      }
+
       @media (max-width: 920px) {
         .grid {
           grid-template-columns: 1fr;
@@ -286,8 +325,7 @@
       <section class="hero">
         <h1>団体戦記録出力システム</h1>
         <p class="subtitle">
-          WTT の団体戦結果を検索して、日本語書式でそのまま使える形に整える MVP です。
-          釜山 2024 のような通常形式と、ロンドン 2026 の Stage 1A / Stage 1B / Preliminary Round 想定のラウンド指定に対応しています。
+          団体戦の結果を検索して、日本語の卓レポ書式で出力するツールです。
         </p>
       </section>
 
@@ -326,17 +364,17 @@
 
             <label>
               ラウンド
-              <input name="round" placeholder="準々決勝 / 準決勝 / 決勝 / 1回戦 / QF / SF / stage 1b">
+              <input name="round" placeholder="準決勝 / SF / semifinal /●回戦 / 予選">
             </label>
 
             <label>
               含む文字
-              <input name="contains" placeholder="張本智和 / 戸上 / 日本 / JPN / Kazakhstan">
+              <input name="contains" placeholder="張本/harimoto/日本/JPN/Japan">
             </label>
 
             <label>
               チーム
-              <input name="team" placeholder="JPN / Japan / Hong Kong">
+              <input name="team" placeholder="JPN / Japan / 日本">
             </label>
 
             <label class="check">
@@ -350,17 +388,11 @@
             </label>
 
             <div class="actions">
-              <button class="primary" type="submit">出力する</button>
+              <button class="primary" type="submit">検索する</button>
               <button class="secondary" type="button" id="copy-button">出力をコピー</button>
             </div>
           </form>
 
-          <p class="hint">
-            London 2026 は大会前だと結果 API が空の可能性があります。その場合でも、ラウンド指定は
-            <code>準々決勝</code> / <code>準決勝</code> / <code>決勝</code> / <code>1回戦</code> /
-            <code>QF</code> / <code>SF</code> / <code>stage 1a</code> / <code>stage 1b</code> /
-            <code>preliminary round</code> のように柔軟に入力できます。
-          </p>
         </aside>
 
         <section class="panel">
@@ -370,9 +402,13 @@
         </section>
       </section>
 
-      <section class="panel">
-        <div class="editor-grid">
-          <section class="editor-box">
+      <details class="panel">
+        <summary class="admin-summary">
+          <strong>管理画面</strong>
+        </summary>
+        <div class="admin-content">
+          <div class="editor-grid">
+            <section class="editor-box">
             <strong>辞書 JSON</strong>
             <p class="hint">選手名や国名の辞書をここで編集できます。下の一括追加欄では、`英語名 日本語名` を行ごとに貼り付けてまとめて反映できます。単一スペース区切りのときは最後の空白で分割します。</p>
             <div class="admin-note">公開環境で `ADMIN_TOKEN` を設定した場合、この編集欄の読込と保存には管理トークンが必要です。</div>
@@ -404,9 +440,9 @@
                 <button class="secondary" type="button" id="clear-bulk">クリア</button>
               </div>
             </div>
-          </section>
+            </section>
 
-          <section class="editor-box">
+            <section class="editor-box">
             <strong>ルール JSON</strong>
             <p class="hint">見出し表記やラウンド名ルールをここで編集できます。</p>
             <div class="actions">
@@ -414,9 +450,10 @@
               <button class="primary" type="button" id="save-rules">保存する</button>
             </div>
             <textarea id="rules-editor" spellcheck="false"></textarea>
-          </section>
+            </section>
+          </div>
         </div>
-      </section>
+      </details>
     </main>
 
     <script>
