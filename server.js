@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 
+const crypto = require("crypto");
 const http = require("http");
 const fs = require("fs");
 const path = require("path");
@@ -23,9 +24,11 @@ const TRANSLATIONS_PATH = path.join(DATA_DIR, "translations.ja.json");
 const RULES_PATH = path.join(DATA_DIR, "rules.json");
 const CACHE_DIR = path.join(DATA_DIR, ".cache");
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN || "";
+const VIEWER_PASSWORD = process.env.VIEWER_PASSWORD || "";
 const TRUST_PROXY = process.env.TRUST_PROXY === "1";
 const RATE_LIMIT_WINDOW_MS = Number(process.env.RATE_LIMIT_WINDOW_MS || 60_000);
 const RATE_LIMIT_MAX_REQUESTS = Number(process.env.RATE_LIMIT_MAX_REQUESTS || 60);
+const VIEWER_COOKIE_NAME = "ttreport_viewer_auth";
 const rateLimitStore = new Map();
 
 function ensureDir(dirPath) {
@@ -47,10 +50,11 @@ function ensureRuntimeFiles() {
   ensureFileFromDefault(RULES_PATH, DEFAULT_RULES_PATH);
 }
 
-function sendJson(response, statusCode, payload) {
+function sendJson(response, statusCode, payload, extraHeaders = {}) {
   response.writeHead(statusCode, {
     "content-type": "application/json; charset=utf-8",
     "cache-control": "no-store",
+    ...extraHeaders,
   });
   response.end(JSON.stringify(payload, null, 2));
 }
@@ -102,10 +106,11 @@ function requireAuthorization(request, response) {
   return false;
 }
 
-function sendText(response, statusCode, body, contentType = "text/plain; charset=utf-8") {
+function sendText(response, statusCode, body, contentType = "text/plain; charset=utf-8", extraHeaders = {}) {
   response.writeHead(statusCode, {
     "content-type": contentType,
     "cache-control": "no-store",
+    ...extraHeaders,
   });
   response.end(body);
 }
@@ -126,6 +131,151 @@ function serveFile(response, filePath) {
         : "application/octet-stream";
 
   sendText(response, 200, fs.readFileSync(filePath), contentType);
+}
+
+function parseCookies(request) {
+  const raw = String(request.headers.cookie || "");
+  return Object.fromEntries(
+    raw
+      .split(";")
+      .map((part) => part.trim())
+      .filter(Boolean)
+      .map((part) => {
+        const separatorIndex = part.indexOf("=");
+        if (separatorIndex < 0) {
+          return [part, ""];
+        }
+        return [
+          decodeURIComponent(part.slice(0, separatorIndex).trim()),
+          decodeURIComponent(part.slice(separatorIndex + 1).trim()),
+        ];
+      }),
+  );
+}
+
+function getViewerCookieValue() {
+  return crypto
+    .createHash("sha256")
+    .update(`ttreport-viewer:${VIEWER_PASSWORD}`)
+    .digest("hex");
+}
+
+function createViewerCookie() {
+  return `${VIEWER_COOKIE_NAME}=${encodeURIComponent(getViewerCookieValue())}; Path=/; HttpOnly; SameSite=Lax; Max-Age=2592000`;
+}
+
+function clearViewerCookie() {
+  return `${VIEWER_COOKIE_NAME}=; Path=/; HttpOnly; SameSite=Lax; Max-Age=0`;
+}
+
+function isViewerAuthorized(request) {
+  if (!VIEWER_PASSWORD) {
+    return true;
+  }
+
+  const cookies = parseCookies(request);
+  return cookies[VIEWER_COOKIE_NAME] === getViewerCookieValue();
+}
+
+function getLoginPage(errorMessage = "") {
+  const errorHtml = errorMessage
+    ? `<p class="error">${escapeHtml(errorMessage)}</p>`
+    : "";
+
+  return `<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ログイン | 団体戦記録出力システム</title>
+    <style>
+      :root {
+        --bg: #f7f1e6;
+        --panel: rgba(255, 251, 245, 0.94);
+        --ink: #1c1917;
+        --muted: #6b6258;
+        --line: rgba(89, 73, 58, 0.16);
+        --accent: #ab2f20;
+        --shadow: 0 24px 60px rgba(84, 54, 28, 0.16);
+      }
+      * { box-sizing: border-box; }
+      body {
+        margin: 0;
+        min-height: 100vh;
+        display: grid;
+        place-items: center;
+        padding: 24px;
+        font-family: "Hiragino Sans", "Yu Gothic", sans-serif;
+        color: var(--ink);
+        background:
+          radial-gradient(circle at top left, rgba(171, 47, 32, 0.16), transparent 30%),
+          radial-gradient(circle at top right, rgba(15, 118, 110, 0.14), transparent 24%),
+          linear-gradient(180deg, #efe3cf 0%, var(--bg) 44%, #f4ede2 100%);
+      }
+      .panel {
+        width: min(440px, 100%);
+        background: var(--panel);
+        border: 1px solid var(--line);
+        border-radius: 24px;
+        box-shadow: var(--shadow);
+        padding: 28px;
+      }
+      h1 { margin: 0 0 10px; font-size: 1.4rem; }
+      p { margin: 0 0 16px; color: var(--muted); line-height: 1.7; }
+      label { display: grid; gap: 8px; font-size: 0.92rem; }
+      input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.9);
+        padding: 12px 14px;
+        color: var(--ink);
+        font: inherit;
+      }
+      button {
+        margin-top: 16px;
+        width: 100%;
+        border: 0;
+        border-radius: 999px;
+        padding: 12px 18px;
+        font: inherit;
+        cursor: pointer;
+        background: var(--accent);
+        color: #fff9f5;
+      }
+      .error {
+        margin-bottom: 16px;
+        padding: 10px 12px;
+        border-radius: 14px;
+        background: rgba(171, 47, 32, 0.08);
+        color: #7f1d1d;
+      }
+    </style>
+  </head>
+  <body>
+    <main class="panel">
+      <h1>閲覧パスワード</h1>
+      <p>このページは限定公開です。閲覧用パスワードを入力してください。</p>
+      ${errorHtml}
+      <form method="post" action="/login">
+        <label>
+          パスワード
+          <input type="password" name="password" autocomplete="current-password" required>
+        </label>
+        <button type="submit">ログイン</button>
+      </form>
+    </main>
+  </body>
+</html>`;
+}
+
+function escapeHtml(value) {
+  return String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#39;");
 }
 
 function readRequestBody(request) {
@@ -240,6 +390,31 @@ async function handleApi(requestUrl, response) {
   }
 }
 
+async function handleViewerLogin(request, response) {
+  if (!VIEWER_PASSWORD) {
+    sendText(response, 302, "", "text/plain; charset=utf-8", {
+      location: "/",
+    });
+    return;
+  }
+
+  const rawBody = await readRequestBody(request);
+  const formData = new URLSearchParams(rawBody);
+  const password = formData.get("password") || "";
+
+  if (password === VIEWER_PASSWORD) {
+    sendText(response, 302, "", "text/plain; charset=utf-8", {
+      location: "/",
+      "set-cookie": createViewerCookie(),
+    });
+    return;
+  }
+
+  sendText(response, 401, getLoginPage("パスワードが違います。"), "text/html; charset=utf-8", {
+    "set-cookie": clearViewerCookie(),
+  });
+}
+
 function handleConfigGet(request, response, pathname) {
   if (pathname === "/api/config/translations") {
     if (!requireAuthorization(request, response)) {
@@ -313,7 +488,47 @@ const server = http.createServer((request, response) => {
   }
 
   if (request.method === "GET" && requestUrl.pathname === "/api/health") {
-    sendJson(response, 200, { ok: true, adminProtected: Boolean(ADMIN_TOKEN) });
+    sendJson(response, 200, {
+      ok: true,
+      adminProtected: Boolean(ADMIN_TOKEN),
+      viewerProtected: Boolean(VIEWER_PASSWORD),
+    });
+    return;
+  }
+
+  if (request.method === "POST" && requestUrl.pathname === "/login") {
+    handleViewerLogin(request, response).catch((error) => {
+      sendText(response, 500, error.message);
+    });
+    return;
+  }
+
+  if (request.method === "GET" && requestUrl.pathname === "/logout") {
+    sendText(response, 302, "", "text/plain; charset=utf-8", {
+      location: "/",
+      "set-cookie": clearViewerCookie(),
+    });
+    return;
+  }
+
+  const viewerAuthorized = isViewerAuthorized(request);
+
+  if (!viewerAuthorized) {
+    if (requestUrl.pathname.startsWith("/api/")) {
+      sendJson(response, 401, {
+        error: "Login required",
+      });
+      return;
+    }
+
+    if (request.method === "GET" && requestUrl.pathname === "/") {
+      sendText(response, 200, getLoginPage(), "text/html; charset=utf-8");
+      return;
+    }
+
+    sendText(response, 302, "", "text/plain; charset=utf-8", {
+      location: "/",
+    });
     return;
   }
 
